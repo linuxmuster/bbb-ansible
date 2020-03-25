@@ -1,0 +1,98 @@
+- hosts: all
+  vars:
+    debian_flavor: ubuntu
+    iconfig_system_locale: 'en_US.UTF-8'
+    config_system_language: 'en_US.UTF-8'
+
+    hostname: FIXME
+    domainnname: FIXME
+    scriptoptlemail: FIXME
+    scriptoptsturnsrv: FIXME: turn.linuxmuster.net
+    scriptoptsturnpw: FIXME
+    scriptoptversion: xenial-220  
+    
+    required_packages:
+      - ufw
+      - fail2ban
+      - vim
+      - language-pack-en 
+      - apt-transport-https
+      - software-properties-common
+      - net-tools
+      - python3-apt
+      - openssh-server
+      - pwgen
+    
+    ssh_port: 22
+    http_port: 80
+    https_port: 443
+
+  tasks:
+    - name: get lsb_release
+      shell: lsb_release -cs
+      register: release
+    - set_fact:
+           lsb_release={{ release.stdout }}
+    
+    - name: Get system type
+      shell: uname -s
+      register: unames
+    - set_fact: 
+           system={{ unames.stdout }}
+
+    - name: Get system architecture 
+      shell: uname -m
+      register: unamem
+    - set_fact:
+           arch={{ unamem.stdout }}
+
+
+    - name: Update APT package cache
+      apt: update_cache=yes
+
+    - name: Upgrade APT to the latest packages
+      apt: upgrade=safe
+
+    - name: Install required packages
+      apt: state=present pkg={{ item }}
+      with_items: "{{ required_packages }}"
+
+    - name: Fix hosts file for FQDN
+      lineinfile:
+          state=present
+          dest=/etc/hosts
+          line="{{ ansible_default_ipv4.address }} {{ hostname }}.{{ domainnname }}  {{ hostname }}"
+          regexp="^{{ ansible_default_ipv4.address }}"
+
+    - name: Change the hostname 
+      hostname:
+          name="{{ hostname }}"
+    
+    - name: Update APT package cache
+      apt: update_cache=yes
+    
+    - name: Disallow ssh password authentication
+      lineinfile: dest=/etc/ssh/sshd_config
+                  regexp="^PasswordAuthentication"
+                  line="PasswordAuthentication no"
+                  state=present
+      notify: Restart ssh
+
+    - name: Disallow root SSH access with passwords
+      lineinfile: dest=/etc/ssh/sshd_config
+                  regexp="^PermitRootLogin"
+                  line="PermitRootLogin without-password"
+                  state=present
+      notify: Restart ssh
+
+    - name: Run /root/bbb-install.sh -v {{ scriptoptversion }} -s {{ hostname }}.{{ domainnname }} -e {{ scriptoptlemail }} -g -c {{ scriptoptsturnsrv }}:{{ scriptoptsturnpw }}
+      script: files/bbb-install.sh -v {{ scriptoptversion }} -s {{ hostname }}.{{ domainnname }} -e {{ scriptoptlemail }} -g -c {{ scriptoptsturnsrv }}:{{ scriptoptsturnpw }} > bbb-install.log 
+
+
+  handlers:
+    - name: Restart ssh
+      service: name=ssh state=restarted
+    - name: Restart nginx
+      service: name=nginx state=restarted
+        
+
