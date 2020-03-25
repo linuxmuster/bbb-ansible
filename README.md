@@ -1,6 +1,7 @@
 # bbb-lfb-ansible
 
 Ansible playbook zur Installation von BBB auf einer "nackten" Ubuntu 16.04 Maschine
+
 Roh und ungeschliffen.
 
 ## Vorgehen
